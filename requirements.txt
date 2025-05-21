@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+httpx
+celery[redis]
+pydantic>=2.5
+pydantic-settings
+rich
+python-dotenv
