@@ -26,6 +26,7 @@ A lightweight, containerized FastAPI service that receives **Model Context Proto
 ```bash
 git clone https://github.com/your-org/mcp-adapter-service.git
 cd mcp-adapter-service
+```text
 ```
 
 ### 2. Configure environment
