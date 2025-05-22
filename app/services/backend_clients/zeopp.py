@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # Author: Shibo Li
-# Date: 2025-05-21
+# Date: 2025-05-22
 
 """
 Client module to interact with Zeo++ API backend for structure analysis.
@@ -58,8 +58,11 @@ async def call_backend(input_data: str, context: Dict[str, Any]) -> Dict:
 
     logger.info(f"[zeopp] Dispatching task {task_id} to endpoint: {endpoint}")
 
-    # Write input_data into a temporary .cssr file
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".cssr", mode="w", encoding="utf-8") as tmp:
+    # 🛠 自动识别 input 格式：如果以 data_ 开头 → .cif，否则 → .cssr
+    input_preview = input_data.strip().lower()
+    suffix = ".cif" if input_preview.startswith("data_") else ".cssr"
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix, mode="w", encoding="utf-8") as tmp:
         tmp.write(input_data)
         tmp.flush()
         file_path = Path(tmp.name)
