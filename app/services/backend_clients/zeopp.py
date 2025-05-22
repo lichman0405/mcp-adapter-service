@@ -23,12 +23,10 @@ ZEO_SUPPORTED_ROUTES = [
     "probe_volume",
     "channel_analysis",
     "structure_info",
-    "oms_detection",
     "pore_size_dist",
     "ray_tracing",
     "blocking_spheres",
     "distance_grid",
-    "convert_xyz",
     "voronoi_network"
 ]
 
