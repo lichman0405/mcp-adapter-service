@@ -4,8 +4,7 @@
 
 """
 Client module to interact with Zeo++ API backend for structure analysis.
-Supports dynamic route selection via context.parameters.route.
-Includes route whitelist enforcement, logging, and file safety.
+Uses zeopp_routes.json to dynamically determine required parameters.
 """
 
 import httpx
@@ -14,6 +13,7 @@ from app.config import settings
 from app.utils import logger
 import tempfile
 from pathlib import Path
+import json
 
 # Supported Zeo++ routes (based on actual FastAPI service)
 ZEO_SUPPORTED_ROUTES = [
@@ -30,15 +30,14 @@ ZEO_SUPPORTED_ROUTES = [
     "voronoi_network"
 ]
 
+# Load route schema (you must place zeopp_routes.json in project root or alongside this script)
+ZEO_ROUTE_CONFIG_PATH = Path(__file__).parent.parent / "zeopp_routes.json"
+if not ZEO_ROUTE_CONFIG_PATH.exists():
+    raise FileNotFoundError(f"Zeo++ route schema not found: {ZEO_ROUTE_CONFIG_PATH}")
+ZEO_ROUTE_CONFIG = json.loads(ZEO_ROUTE_CONFIG_PATH.read_text(encoding="utf-8"))
+
 
 async def call_backend(input_data: str, context: Dict[str, Any]) -> Dict:
-    """
-    Calls the Zeo++ backend for a specific analysis route.
-
-    :param input_data: Structure file content (.cssr or .cif)
-    :param context: Dict with task_id and parameters (including 'route')
-    :return: Parsed response from Zeo++ backend
-    """
     task_id = context.get("task_id", "unknown")
     parameters = context.get("parameters", {})
 
@@ -55,10 +54,8 @@ async def call_backend(input_data: str, context: Dict[str, Any]) -> Dict:
     output_filename = parameters.get("output_filename", f"{task_id}.res")
     base_url = settings.zeopp_base_url
     endpoint = f"{base_url}/api/{route}"
-
     logger.info(f"[zeopp] Dispatching task {task_id} to endpoint: {endpoint}")
 
-    # 🛠 自动识别 input 格式：如果以 data_ 开头 → .cif，否则 → .cssr
     input_preview = input_data.strip().lower()
     suffix = ".cif" if input_preview.startswith("data_") else ".cssr"
 
@@ -72,7 +69,24 @@ async def call_backend(input_data: str, context: Dict[str, Any]) -> Dict:
             files = {
                 "structure_file": (file_path.name, f, "text/plain")
             }
-            data = {"output_filename": output_filename}
+
+            # 🔁 Dynamic parameter injection based on zeopp_routes.json
+            route_schema = ZEO_ROUTE_CONFIG.get(route)
+            if not route_schema:
+                raise ValueError(f"[zeopp] No schema defined for route: '{route}'")
+
+            data = {}
+            for key in route_schema.get("required", []):
+                if key not in parameters:
+                    raise ValueError(f"[zeopp] Missing required Zeo++ param: '{key}'")
+                data[key] = str(parameters[key])
+
+            for key in route_schema.get("optional", []):
+                if key in parameters:
+                    val = parameters[key]
+                    data[key] = str(val).lower() if isinstance(val, bool) else str(val)
+
+            data["output_filename"] = output_filename  # always include if available
 
             async with httpx.AsyncClient(timeout=60.0) as client:
                 response = await client.post(endpoint, files=files, data=data)
@@ -87,7 +101,4 @@ async def call_backend(input_data: str, context: Dict[str, Any]) -> Dict:
 
 
 def list_supported_routes() -> list:
-    """
-    Returns the list of available Zeo++ analysis routes.
-    """
     return ZEO_SUPPORTED_ROUTES
